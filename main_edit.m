@@ -10,13 +10,14 @@ cPts = size(celebrityImageData.identity,1); #target data
 celebrityImageData.pcaFeature = zeros(cPts, pcaDim*nPart); #no of celebs x total no of PCA's features
 changeIndex = reshape([1:75520], [], 5)'; # what the fuck
 changeIndex = changeIndex(:); #pls explain :'(
+#HOW DOES THE NEXT PART WORK????
 for p = 1:nPart #for each facial landmark
    partIndex = changeIndex([1 + (p-1)*partDim:p*partDim]); #stores the indices of the pth landmark
    pcaIndex = [1 + (p-1)*pcaDim:p*pcaDim]; #concatenated features. index of each set of features is p-1 to p the span of a featureDim
    # +1 allows feature to move on to prevent overwriting of last index in its next epoch.
    X = sqrt(double(celebrityImageData.feature(:,partIndex))); #why sqrt?
    [~, PCAmapping] = pca(X(find(celebrityImageData.rank > 35), :), pcaDim); #
-   X_PCA = bsxfun(@minus, X, PCAmapping.mean) * PCAmapping.M;
+   X_PCA = bsxfun(@minus, X, PCAmapping.mean) * PCAmapping.M; #make new PCA'd X zero mean
    W = diag(ones(pcaDim,1)./sqrt(PCAmapping.lambda + eps));
    X_PCA = X_PCA*W;
    celebrityImageData.pcaFeature(:,pcaIndex) = X_PCA;
