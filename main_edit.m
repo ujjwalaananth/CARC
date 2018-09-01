@@ -6,8 +6,8 @@ eps = 10^-5; #epsilon
 nPart = 16; #number of facial landmarks
 pcaDim = 500; #PCA dimension
 partDim = 4720; #dimension of each landmark's feature
-cPts = size(celebrityImageData.identity,1); #target data
-celebrityImageData.pcaFeature = zeros(cPts, pcaDim*nPart); #no of celebs x total no of PCA's features
+cPts = size(celebrityImageData.identity,1); #no of celebs
+celebrityImageData.pcaFeature = zeros(cPts, pcaDim*nPart); #no of celebs x total no of PCA features
 changeIndex = reshape([1:75520], [], 5)'; # what the fuck
 changeIndex = changeIndex(:); #pls explain :'(
 #HOW DOES THE NEXT PART WORK????
@@ -39,7 +39,7 @@ dataset{2} = '2007-2009';
 dataset{3} = '2010-2012';
 
 
-%Here is for prepareing your own features, the order of the features should be same as "image.list"
+%Here is for preparing your own features, the order of the features should be same as "image.list"
 %{
 celebrityImageData.newFeature = zeros(163446, feature_dim);
 %}
@@ -53,6 +53,7 @@ for i = 1:3
    X = celebrityImageData.pcaFeature(databaseIndex{i}, :);
    dist = -1*normalizeL2(qX)*normalizeL2(X)';
    result = evaluation(dist, queryId, databaseId);
+   #I GIVE UP. YOU WIN.
    fprintf('High-Dimensional LBP:\tMAP = %f, P@1 = %f\n', mean(result.ap), result.patK(1));
    dist = -1*normalizeL2(CARC_query)*normalizeL2(CARC_database{i})';
    result = evaluation(dist, queryId, databaseId);
