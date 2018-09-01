@@ -1,66 +1,68 @@
-% Cross-Age Celebrity Coding
-% Reference: Bor-Chun Chen, Chu-Song Chen, Winston Hsu. Cross-Age Reference Coding for Age-Invariant Face Recognition and Retrieval, ECCV, 2014
-% http://bcsiriuschen.github.io/CARC/
-function [CRAC_Feature] = CARC(celebrityImageData, celebrityData, lambda, lambda2, imageIndex)
+fprintf('Loading dataset...\n');
+load('celebrity2000');
 
-%initialize some variables
-nPart = 16;
-pcaDim = 500;
-cNum = size(find(celebrityData.rank <= 20 & celebrityData.rank > 5),1);
-nPts = size(imageIndex,1);
-CRAC_Feature = zeros(nPts, cNum*nPart);
-celebrityIdentity = find(celebrityData.rank <= 20 & celebrityData.rank > 5);
-groupNum = 10;
-group{groupNum,cNum} = 0;
-for i = 1:cNum
-   group{1,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2004);
-   group{2,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2005);
-   group{3,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2006);
-   group{4,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2007);
-   group{5,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2008);
-   group{6,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2009);
-   group{7,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2010);
-   group{8,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2011);
-   group{9,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2012);
-   group{10,i} = find(celebrityImageData.identity == celebrityIdentity(i) & celebrityImageData.year == 2013);
-end
-L = zeros(cNum*(groupNum-2), cNum*groupNum);
-for j = 1:(groupNum-2)
-   L(1 + (j-1)*cNum:j*cNum, 1 + (j-1)*cNum:j*cNum) = eye(cNum);
-   L(1 + (j-1)*cNum:j*cNum, 1 + j*cNum:(j+1)*cNum) = -2*eye(cNum);
-   L(1 + (j-1)*cNum:j*cNum, 1 + (j+1)*cNum:(j+2)*cNum) = eye(cNum);
+fprintf('Computing PCA feature...\n');
+eps = 10^-5; #epsilon
+nPart = 16; #number of facial landmarks
+pcaDim = 500; #PCA dimension
+partDim = 4720; #dimension of each landmark's feature
+cPts = size(celebrityImageData.identity,1); #target data
+celebrityImageData.pcaFeature = zeros(cPts, pcaDim*nPart); #no of celebs x total no of PCA's features
+changeIndex = reshape([1:75520], [], 5)'; # what the fuck
+changeIndex = changeIndex(:); #pls explain :'(
+for p = 1:nPart #for each facial landmark
+   partIndex = changeIndex([1 + (p-1)*partDim:p*partDim]); #stores the indices of the pth landmark
+   pcaIndex = [1 + (p-1)*pcaDim:p*pcaDim]; #concatenated features. index of each set of features is p-1 to p the span of a featureDim
+   # +1 allows feature to move on to prevent overwriting of last index in its next epoch.
+   X = sqrt(double(celebrityImageData.feature(:,partIndex))); #why sqrt?
+   [~, PCAmapping] = pca(X(find(celebrityImageData.rank > 35), :), pcaDim); #
+   X_PCA = bsxfun(@minus, X, PCAmapping.mean) * PCAmapping.M;
+   W = diag(ones(pcaDim,1)./sqrt(PCAmapping.lambda + eps));
+   X_PCA = X_PCA*W;
+   celebrityImageData.pcaFeature(:,pcaIndex) = X_PCA;
 end
 
-for p = 1:nPart
-   partIndex = [1 + (p-1)*pcaDim:p*pcaDim];
-   partAll = celebrityImageData.pcaFeature(:,partIndex);
-   partAll = normalizeL2(partAll);
-   partX = partAll(imageIndex,:);
-   partX = repmat(partX, 1, groupNum);
-   partD = zeros(groupNum*pcaDim, groupNum*cNum);
+fprintf('Computing Cross-Age Reference Coding...\n');
+databaseIndex{1} = find((celebrityImageData.year == 2004 | celebrityImageData.year == 2005 | celebrityImageData.year == 2006) & celebrityImageData.rank <=5 & celebrityImageData.rank > 2);
+databaseIndex{2} = find((celebrityImageData.year == 2007 | celebrityImageData.year == 2008 | celebrityImageData.year == 2009) & celebrityImageData.rank <=5 & celebrityImageData.rank > 2);
+databaseIndex{3} = find((celebrityImageData.year == 2010 | celebrityImageData.year == 2011 | celebrityImageData.year == 2012) & celebrityImageData.rank <=5 & celebrityImageData.rank > 2);
+queryIndex = find(celebrityImageData.year == 2013 & celebrityImageData.rank <=5 & celebrityImageData.rank > 2);
+lambda = 10;
+lambda2 = 10000;
+CARC_query = CARC(celebrityImageData, celebrityData, lambda, lambda2, queryIndex);
+CARC_database{1} = CARC(celebrityImageData, celebrityData, lambda, lambda2, databaseIndex{1});
+CARC_database{2} = CARC(celebrityImageData, celebrityData, lambda, lambda2, databaseIndex{2});
+CARC_database{3} = CARC(celebrityImageData, celebrityData, lambda, lambda2, databaseIndex{3});
+dataset{1} = '2004-2006';
+dataset{2} = '2007-2009';
+dataset{3} = '2010-2012';
+
+
+%Here is for prepareing your own features, the order of the features should be same as "image.list"
+%{
+celebrityImageData.newFeature = zeros(163446, feature_dim);
+%}
+
+fprintf('Evaluation...\n');
+queryId = celebrityImageData.identity(queryIndex);
+for i = 1:3
+   fprintf(['Result for dataset ' dataset{i} '\n']);
+   databaseId = celebrityImageData.identity(databaseIndex{i});
+   qX = celebrityImageData.pcaFeature(queryIndex, :);
+   X = celebrityImageData.pcaFeature(databaseIndex{i}, :);
+   dist = -1*normalizeL2(qX)*normalizeL2(X)';
+   result = evaluation(dist, queryId, databaseId);
+   fprintf('High-Dimensional LBP:\tMAP = %f, P@1 = %f\n', mean(result.ap), result.patK(1));
+   dist = -1*normalizeL2(CARC_query)*normalizeL2(CARC_database{i})';
+   result = evaluation(dist, queryId, databaseId);
+   fprintf('CARC:\t\t\tMAP = %f, P@1 = %f\n', mean(result.ap), result.patK(1));
    
-   %Step-1 Reference Set Representations
-   for j = 1:groupNum
-      cX = zeros(cNum, pcaDim);
-      for i = 1:cNum
-         if(size(group{j,i},1) ~= 0)
-            cX(i,:) = mean(partAll(group{j,i},:));
-         end
-      end
-      partD(1+(j-1)*pcaDim:j*pcaDim, 1+(j-1)*cNum:j*cNum) = cX';
-   end
-
-   %Step-2 Encoding Feature
-   A = (partD'*partD + lambda*eye(size(partD,2)) + lambda2*L'*L)\partD'*partX';
-
-   %Step-3 Max Pooling
-   A = reshape(A, cNum, groupNum, nPts);
-   result = zeros(cNum, nPts);
-   resultSign = zeros(cNum, nPts);
-   result(:,:) = max(abs(A), [], 2);
-   resultSign(:,:) = max(A, [], 2);
-   resultSign = double(resultSign == result);
-   resultSign(find(resultSign == 0)) = -1;
-   result = resultSign.*result;
-   CRAC_Feature(:,1+(p-1)*cNum:p*cNum) = result';
+   %To compare your own features using same protocol, you can uncomment these lines for evaluation
+   %{
+   qX = celebrityImageData.newFeature(queryIndex, :);
+   X = celebrityImageData.newFeature(databaseIndex{i}, :);
+   dist = -1*normalizeL2(qX)*normalizeL2(X)';
+   result = evaluation(dist, queryId, databaseId);
+   fprintf('New Features:\tMAP = %f, P@1 = %f\n', mean(result.ap), result.patK(1));
+   %}
 end
